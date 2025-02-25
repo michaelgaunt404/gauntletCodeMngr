@@ -1,0 +1,14 @@
+Package: gauntletCodeMngr
+Title: Helper functions for Code Management
+Version: 0.0.0.9000
+Authors@R: 
+    person("Mike", "Gaunt", , "mike.gaunt.404@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: This package contains a number of general purpose helper
+    functions to aid in code base management. They will help organize code
+    indetend for use in its own package or in a general analysis.
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
