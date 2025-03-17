@@ -11,7 +11,6 @@
 #' @return A list with two character vectors: `"Imports"` (required dependencies) and `"Suggests"` (optional dependencies).
 #'
 #' @importFrom stringr str_extract_all str_remove_all
-#' @importFrom utils readLines
 #'
 #' @export
 #'
