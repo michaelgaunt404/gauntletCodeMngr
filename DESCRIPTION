@@ -15,6 +15,7 @@ RoxygenNote: 7.3.1
 URL: https://michaelgaunt404.github.io/gauntletCodeMngr/
 Imports: 
     dplyr,
+    purrr,
     magrittr,
     stringr,
     visNetwork
