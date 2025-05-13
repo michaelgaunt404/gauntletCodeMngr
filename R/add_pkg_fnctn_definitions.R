@@ -18,6 +18,7 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' library(dplyr)
 #' library(stringr)
 #' library(DescTools)
@@ -31,6 +32,7 @@
 #' temp_script <- tempfile(fileext = ".R")
 #' writeLines(ex_script, temp_script)
 #' add_pkg_fnctn_definitions(temp_script)
+#' }
 add_pkg_fnctn_definitions = function(script){
   temp_pkg_fnct_loaded = sessionInfo()[["otherPkgs"]] %>%
     names() %>%

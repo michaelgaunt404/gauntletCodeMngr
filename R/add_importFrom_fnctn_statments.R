@@ -15,6 +15,7 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' ex_script <- "mtcars %>%
 #'    dplyr::mutate(
 #'      var_1 = DescTools::Quantile(disp, probs = .6),
@@ -24,7 +25,7 @@
 #' temp_script <- tempfile(fileext = ".R")
 #' writeLines(ex_script, temp_script)
 #' add_importFrom_fnctn_statments(temp_script)
-#'
+#' }
 add_importFrom_fnctn_statments <- function(script) {
   # Read the script lines
   script_lines <- readLines(script) %>%

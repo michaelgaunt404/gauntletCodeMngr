@@ -20,6 +20,7 @@ they contain. It then reads the script, identifies non-qualified function calls,
 with their qualified counterparts if a match is found in the loaded packages.
 }
 \examples{
+\dontrun{
 library(dplyr)
 library(stringr)
 library(DescTools)
@@ -33,4 +34,5 @@ ex_script <- "mtcars \%>\%
 temp_script <- tempfile(fileext = ".R")
 writeLines(ex_script, temp_script)
 add_pkg_fnctn_definitions(temp_script)
+}
 }

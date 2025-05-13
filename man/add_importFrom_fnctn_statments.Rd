@@ -19,6 +19,7 @@ This function analyzes a given script to detect functions used in the
 for each package detected, capturing the required dependencies for the script.
 }
 \examples{
+\dontrun{
 ex_script <- "mtcars \%>\%
    dplyr::mutate(
      var_1 = DescTools::Quantile(disp, probs = .6),
@@ -28,5 +29,5 @@ ex_script <- "mtcars \%>\%
 temp_script <- tempfile(fileext = ".R")
 writeLines(ex_script, temp_script)
 add_importFrom_fnctn_statments(temp_script)
-
+}
 }
