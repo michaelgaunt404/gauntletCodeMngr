@@ -20,7 +20,7 @@ The goal of `gauntletCodeMngr` is to **reduce manual work and enforce structure*
 :heavy_check_mark: **Generate a directory tree representation** of an R project\
 :heavy_check_mark: **Map function calls across scripts** to visualize dependencies
 
-## Installation
+## Installation   
 
 Install the development version from GitHub:
 
