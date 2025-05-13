@@ -1,0 +1,238 @@
+---
+title: "easy_package_development"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{easy_package_development}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, message = F, warning=F}
+library(gauntlet)
+```
+
+# Introduction
+
+Developing R packages can be a meticulous task, requiring attention to details like properly declaring function imports and ensuring that script names match their contained functions. To simplify these tasks, I've developed a set of convenience functions that automate parts of the package development process.
+
+When creating R packages, it's also crucial to document each function using Roxygen comments. 
+This documentation helps users understand the functionality of your functions and ensures that your package correctly imports all necessary functions. 
+
+By maintaining thorough Roxygen documentation, you ensure both clarity for users and correctness in function imports.
+
+Yay documentation!!
+
+# Functions
+
+Here are the functions we'll be using:
+
+- `checkPkg_add_pkgFnctns_links`: Scans an R script for function calls that should have package qualifiers and replaces unqualified function calls with the fully qualified notation `[package]::[function]`.
+- `checkPkg_scrpt_fnctn_names`: Checks script names and function names in a directory to ensure they match and provides a summary of the functions contained in each script.
+- `checkPkg_make_importFrom_fnctn_statments`: Analyzes a script to detect `package::function` notation and generates `@importFrom` statements for each package detected.
+
+We'll show you how to use these functions later in the tutorial.
+
+# Preparation
+Load these packages as we will need them for this walk through.
+
+We will also make function that will create a number of temporary scripts.
+
+```{r message = F}
+# Load necessary libraries
+library(dplyr)
+library(stringr)
+library(DescTools)
+library(purrr)
+
+# Function to create temporary R scripts with matching function names
+create_temp_scripts <- function(directory) {
+  for (i in 1:3) {
+    script_name <- file.path(directory, paste0("function", i, ".R"))
+    function_name <- paste0("function", i)
+    function_code <- paste0(function_name, " <- function() {\n  # Placeholder function\n}\n")
+    writeLines(function_code, script_name)
+  }
+}
+```
+
+
+Let's create a fake temporary repository directory and some fake functions to use in our examples.
+```{r message = F}
+# Create a temporary directory
+temp_dir <- tempdir(check = T)
+temp_sub_dir <- file.path(temp_dir, "R")
+dir.create(temp_sub_dir)
+
+# Create example script content
+temp_script_long = "process_mtcars = function(){
+  mtcars %>%
+    mutate(
+      var_1 = Quantile(disp, probs = .6),
+      var_2 = str_glue('{disp} {hp}'),
+      var_3 = case_when(hp>median(hp)~'Big', T~'Small')
+    ) %>% 
+    select(mpg, starts_with('var_')) %>% 
+    arrange(mpg)
+}"
+
+temp_script_too_many_functions = '
+temp_function_1 = function(){
+  print("hello")
+}
+
+temp_function_2 = function(){
+  print("I should be in my own script!")
+}
+'
+
+# Write the example script to a temporary file
+temp_script <- tempfile(fileext = ".R")
+
+temp_script_long_path = here::here(temp_sub_dir, "process_mtcars.R")
+writeLines(
+  temp_script_long
+  ,temp_script_long_path)
+
+temp_script_too_many_functions_path = here::here(temp_sub_dir, "temp_function_1.R")
+writeLines(
+  temp_script_too_many_functions
+  ,temp_script_too_many_functions_path)
+
+# Create temporary R scripts with matching function names
+create_temp_scripts(temp_sub_dir)
+```
+
+Take a look at the example functions we just made in the temp directory.
+
+```{r}
+list.files(temp_sub_dir)
+```
+
+# Using the Functions
+
+## `checkPkg_scrpt_fnctn_names`   
+
+First, let's use the `checkPkg_scrpt_fnctn_names` function. 
+
+This function checks if the scripts that hold the functions have the correct script name and function name relationship. It also provides a good snapshot of the state of the functions and the directory and how they relate to each other.
+
+```{r}
+# Check the script and function names using the provided function
+result <- checkPkg_scrpt_fnctn_names(temp_sub_dir)
+
+# Print the result
+print(result)
+```
+
+So a few things to point out regarding the function output: 
+
+- First, the output is a `tidy` dataframe detailing each script and the functions inside them (with some additional data). We generally want to avoid this as it really muddies the waters of where functions live in your package/repo.
+- `number_functions` performs a similar purpose but indicates the actual number of functions in any given script.
+- `name_match` indicates if at least one function in the script has the same name as the script.
+
+Using this table, you can make changes to your functions and scripts to better organize your repo.
+
+Running this function is a good practice to ensure your scripts are properly organized and to get an overview of the functions in your directory.
+
+## `checkPkg_add_pkgFnctns_links`        
+Next, we'll use the `checkPkg_add_pkgFnctns_links` function. This function checks each function in your script to see if it requires a package declaration based on the current environment.
+
+```{r}
+# Check and add package function links
+result <- checkPkg_add_pkgFnctns_links(
+  temp_script_long_path
+)
+```
+
+This function identifies unqualified function calls and replaces them with the correct `[package]::[function]` notation - lines with changes are appended with `#!!!! LINE CHANGED` to notify the user.   
+  
+If `checkPkg_add_pkgFnctns_links` has identified the correct missing package qualifiers, simply copy and paste the output into your function and save the corrections — otherwise, just delete them.
+
+We will now save our edited function with the corrected package declarations.
+```{r}
+temp_script_long = "process_mtcars = function(){
+  mtcars %>%
+    dplyr::mutate(                      
+      var_1 = DescTools::Quantile(disp, probs = .6),                      
+      var_2 = stringr::str_glue('{disp} {hp}'),                      
+      var_3 = dplyr::case_when(hp>median(hp)~'Big', T~'Small')                      
+    ) %>% 
+    dplyr::select(mpg, dplyr::starts_with('var_')) %>%                       
+    dplyr::arrange(mpg)                      
+}"
+
+writeLines(
+  temp_script_long
+  ,temp_script_long_path)
+```
+
+## `checkPkg_make_importFrom_fnctn_statments`   
+         
+Finally, we'll use the `checkPkg_make_importFrom_fnctn_statments` function.   
+  
+This function generates @importFrom statements for each package detected in your script, which is essential for proper documentation.    
+
+We will run in on our newly edited function `process_mtcars.R`.    
+
+```{r}
+# Generate @importFrom statements
+checkPkg_make_importFrom_fnctn_statments(temp_script_long_path)
+```
+Running this function ensures that your documentation properly defines the packages and their functions, making it easier to manage dependencies.
+
+This output can be dropped right into your ROxygen documentation for this script.
+
+```{r}
+temp_script_long = "
+#' Process mtcars
+#'
+#' This function perfroms common mtcars processing.
+#'
+#' @return A numeric value or vector
+#' @export
+#'
+#' @importFrom dplyr mutate case_when select starts_with arrange
+#' @importFrom DescTools Quantile
+#' @importFrom stringr str_glue
+process_mtcars = function(){
+  mtcars %>%
+    dplyr::mutate(                      
+      var_1 = DescTools::Quantile(disp, probs = .6),                      
+      var_2 = stringr::str_glue('{disp} {hp}'),                      
+      var_3 = dplyr::case_when(hp>median(hp)~'Big', T~'Small')                      
+    ) %>% 
+    dplyr::select(mpg, dplyr::starts_with('var_')) %>%                       
+    dplyr::arrange(mpg)                      
+}'
+"
+
+writeLines(
+  temp_script_long
+  ,temp_script_long_path)
+```
+
+# Conculusion
+These functions are designed to streamline the package development process by automating common tasks that can be error-prone and time-consuming. By integrating these tools into your workflow, you can focus more on the logic and functionality of your package and less on the tedious details.
+
+Feel free to check out the full documentation and source code on GitHub and visit my personal blog for more tutorials and insights.
+
+Happy coding!
+
+
+
+
+
+
+
+
+
