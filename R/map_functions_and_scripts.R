@@ -95,117 +95,109 @@
 #'
 #'
 #' }
-map_functions_and_scripts = function(function_directory, code_directory = NULL) {
-  # List and sort function scripts
-  function_scripts <- list.files(function_directory, pattern = "\\.R$", full.names = TRUE) %>%
-    sort()
+map_functions_and_scripts =  function(function_directory, code_directory = NULL) {
+    #-- Step 1: Parse all functions defined in function_directory
+    function_scripts <- list.files(function_directory, pattern = "\\.R$", full.names = TRUE)
 
-  # Parse function scripts to find defined functions
-  result_df = function_scripts %>% purrr::map_df(function(script) {
-    script_content <- readLines(script)
-    script_name <- sub("\\.R$", "", basename(script))
-    function_lines <- c(
-      grep("\\s*\\w+\\s*<-\\s*function\\s*\\(", script_content, value = TRUE),
-      grep("\\s*\\w+\\s*=\\s*function\\s*\\(", script_content, value = TRUE)
-    ) %>% .[!stringr::str_detect(., "^# |#'")] %>% .[!stringr::str_detect(., "function\\(e|err|error\\)")]
+    # Identify custom functions
+    function_defs <- purrr::map_df(function_scripts, function(script) {
+      lines <- readLines(script, warn = FALSE)
+      script_name <- tools::file_path_sans_ext(basename(script))
 
-    function_names <- function_lines %>%
-      purrr::map_chr(~ gsub("\\s*(<-|=)\\s*function\\(.*", "", .)) %>%
-      stringr::str_trim() %>%
-      unique()
+      func_lines <- grep("\\b\\w+\\s*(<-|=)\\s*function\\s*\\(", lines, value = TRUE)
+      func_lines <- func_lines[!stringr::str_detect(func_lines, "^#|#'")]
 
-    data.frame(
-      file_name = script_name,
-      function_names = paste(function_names, collapse = ", "),
-      number_functions = length(function_names),
-      stringsAsFactors = FALSE
-    )
-  })
+      func_names <- func_lines %>%
+        purrr::map_chr(~ gsub("\\s*(<-|=)\\s*function\\(.*", "", .)) %>%
+        stringr::str_trim() %>%
+        unique()
 
-  index_functions = list.files(function_directory, pattern = "\\.R$", full.names = TRUE)
+      tibble::tibble(file = script_name, function_name = func_names)
+    })
 
-  if (!is.null(code_directory)){
-    index_scripts = list.files(code_directory, pattern = "\\.R$", full.names = TRUE)
+    custom_functions <- unique(function_defs$function_name)
 
-    code_scripts = c(index_functions
-                     ,index_scripts)
+    #-- Step 2: Identify function-to-function calls (internal)
+    df_function_to_function <- purrr::map_df(function_scripts, function(script_path) {
+      lines <- readLines(script_path, warn = FALSE)
+      parent <- tools::file_path_sans_ext(basename(script_path))
 
-  }
-
-  code_scripts = c(index_functions)
-
-
-  code_function_calls <- code_scripts %>%
-    # .[5] %>%
-    purrr::map_df(function(script) {
-      # browser()
-      script_content <- readLines(script)
-      calls = grep("\\w+\\s*\\(", script_content, value = TRUE) %>%
+      matches <- grep("\\w+\\s*\\(", lines, value = TRUE) %>%
         stringr::str_extract_all("\\b\\w+\\b") %>%
         unlist() %>%
-        unique() %>%
-        sort()
+        intersect(custom_functions) %>%
+        unique()
 
-      if(is.null(calls)){
-        calls_df = data.frame(
-          from = NA_character_
-          ,to = basename(script)
-        )
-      } else {
-        calls_df = data.frame(
-          from = calls
-          ,to = basename(script)
-        )
+      if (length(matches) == 0) return(NULL)
 
-      }
-      calls_df = calls_df %>%
-        dplyr::mutate(to = stringr::str_remove(to, "\\.R"))
+      tibble::tibble(from = matches, to = parent, type = "in_function")
+    })
 
-      return(calls_df)
-    }) %>%
-    dplyr::filter((from %in% result_df$file_name) |
-                    (from == to)) %>%
-    dplyr::arrange(to, from) %>%
-    dplyr::mutate(from = dplyr::case_when(from == to~NA_character_, T~from))
+    #-- Step 3: Optionally parse usage in an external code_directory
+    df_function_to_script <- NULL
+    if (!is.null(code_directory)) {
+      code_scripts <- list.files(code_directory, pattern = "\\.R$", full.names = TRUE)
 
-  nodes = data.frame(
-    label = unique(c(code_function_calls$from, code_function_calls$to)) %>%
-      sort(), stringsAsFactors = FALSE) %>%
-    dplyr::mutate(group = dplyr::case_when(
-      label %in% stringr::str_remove(basename(index_scripts), "\\.R")~"scripts"
-      ,T~"functions"
-    )) %>%
-    unique() %>%
-    dplyr::mutate(id = dplyr::row_number()-1)
+      df_function_to_script <- purrr::map_df(code_scripts, function(script_path) {
+        lines <- readLines(script_path, warn = FALSE)
+        script_name <- tools::file_path_sans_ext(basename(script_path))
 
-  links = code_function_calls %>%
-    dplyr::mutate(
-      from = match(from, nodes$label) - 1,
-      to = match(to, nodes$label) - 1
-    ) %>%
-    dplyr::select(from, to) %>%
-    dplyr::arrange(to, from)
+        matches <- grep("\\w+\\s*\\(", lines, value = TRUE) %>%
+          stringr::str_extract_all("\\b\\w+\\b") %>%
+          unlist() %>%
+          intersect(custom_functions) %>%
+          unique()
 
-  temp_vis = visNetwork::visNetwork(nodes, links, height = "800px", width = "100%") %>%
-    visNetwork::visEdges(arrows = "to", length = 100
-                         ,physics = F) %>%
-    visNetwork::visGroups(groupname = "functions", color = "lightblue", shape = "triangle",
-                          shadow = list(enabled = F)) %>%
-    visNetwork::visGroups(groupname = "scripts", color = "orange", shape = "square") %>%
-    visNetwork::visHierarchicalLayout(
-      direction = "LR"
-      ,levelSeparation = 300
-      ,blockShifting = T
-      ,edgeMinimization = T
-      ,parentCentralization = T
-      ,sortMethod = "directed") %>%
-    visNetwork::visOptions(highlightNearest = list(enabled = TRUE, degree = 2), nodesIdSelection = F) %>%
-    visNetwork::visPhysics(stabilization = F)
+        if (length(matches) == 0) return(NULL)
 
-  output_object = list(
-    vis_plot = temp_vis
-    ,df_to_from = code_function_calls
-  )
+        tibble::tibble(from = matches, to = script_name, type = "used_in_script")
+      })
+    }
 
-  return(output_object)
-}
+    #-- Step 4: Combine edge tables and prevent self-edges visually
+    edges <- dplyr::bind_rows(df_function_to_function, df_function_to_script) %>%
+      dplyr::mutate(from = dplyr::if_else(from == to, NA_character_, from)) %>%
+      dplyr::distinct(from, to, type) %>%
+      group_by(from) %>%
+      mutate(from_conn = n()) %>%
+      group_by(to) %>%
+      mutate(to_conn = n()) %>%
+      ungroup() %>%
+      select(from, from_conn, to, to_conn, type)
+
+    #-- Step 5: Construct nodes
+    all_labels <- unique(c(edges$from, edges$to)) %>% na.omit()
+    nodes <- tibble::tibble(label = all_labels) %>%
+      dplyr::mutate(
+        group = dplyr::case_when(
+          label %in% function_defs$function_name ~ "function",
+          label %in% function_defs$file ~ "function_file",
+          TRUE ~ "script"
+        ),
+        id = dplyr::row_number() - 1
+      )
+
+    label_to_id <- setNames(nodes$id, nodes$label)
+
+    links <- edges %>%
+      dplyr::mutate(
+        from_id = label_to_id[from],
+        to_id = label_to_id[to]
+      ) %>%
+      dplyr::select(from = from_id, to = to_id, type)
+
+    #-- Step 6: Visualize using visNetwork
+    vis_plot <- visNetwork::visNetwork(nodes, links, height = "800px", width = "100%") %>%
+      visNetwork::visEdges(arrows = "to", physics = T) %>%
+      visNetwork::visGroups(groupname = "function", color = "lightblue", shape = "dot") %>%
+      visNetwork::visGroups(groupname = "function_file", color = "lightgreen", shape = "box") %>%
+      visNetwork::visGroups(groupname = "script", color = "orange", shape = "square") %>%
+      visNetwork::visHierarchicalLayout(direction = "LR", levelSeparation = 250) %>%
+      visNetwork::visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE)
+
+    return(list(
+      vis_plot = vis_plot,
+      edges = edges,
+      nodes = nodes
+    ))
+  }

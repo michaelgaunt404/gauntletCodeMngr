@@ -40,7 +40,8 @@ while others may have files randomly sampled if \code{sample_n} is specified.
 generate_tree_structure()
 
 # Generate a tree structure for a specific directory with no sampling
-generate_tree_structure(dir = "path/to/directory", sample_n = NULL)
+temp = generate_tree_structure(dir = "path/to/directory", sample_n = NULL)
+message(temp)
 
 # Generate a tree structure and sample up to 2 files per directory
 generate_tree_structure(dir = "path/to/directory", sample_n = 2)

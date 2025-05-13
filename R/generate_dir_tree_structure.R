@@ -24,7 +24,8 @@
 #' generate_tree_structure()
 #'
 #' # Generate a tree structure for a specific directory with no sampling
-#' generate_tree_structure(dir = "path/to/directory", sample_n = NULL)
+#' temp = generate_tree_structure(dir = "path/to/directory", sample_n = NULL)
+#' message(temp)
 #'
 #' # Generate a tree structure and sample up to 2 files per directory
 #' generate_tree_structure(dir = "path/to/directory", sample_n = 2)
@@ -33,7 +34,8 @@ generate_dir_tree_structure <- function(
     dir = ".", prefix = "",
     dirs_to_fully_list = c("R", "code", "data", "docs", "_targets", "analysis"),
     sample_n = 1) {
-  items <- list.files(dir, full.names = TRUE)
+
+  items <- list.files(dir, full.names = TRUE, all.files = FALSE, no.. = TRUE)
 
   # Separate files and directories
   dirs <- items[file.info(items)$isdir]
@@ -67,16 +69,18 @@ generate_dir_tree_structure <- function(
 
     # Adjust prefix for recursive call
     sub_prefix <- ifelse(i == length(dirs), "    ", "│   ")
-    sub_structure <- generate_tree_structure(dirs[i], paste0(prefix, sub_prefix),
-                                             dirs_to_fully_list, sample_n)
-    structure <- c(structure, sub_structure)
+    sub_structure <- generate_dir_tree_structure(
+      dir = dirs[i],
+      prefix = paste0(prefix, sub_prefix),
+      dirs_to_fully_list = dirs_to_fully_list,
+      sample_n = sample_n
+    )
+    structure <- c(structure, strsplit(sub_structure, "\n")[[1]])
   }
 
-  structure <- paste0(structure, collapse = "\n")
-  # message(structure)
-
-  return(structure)
+  return(paste0(structure, collapse = "\n"))
 }
+
 
 
 
